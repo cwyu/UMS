@@ -1,0 +1,77 @@
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>URI Management Service (UMS)</title>
+
+    <script type="text/javascript">
+      function validateForm() {
+          var json_file = document.forms["myForm"]["json_file"].value;
+          if (!json_file) {
+              alert("Error: No Input File Specified");
+              return false;
+          }
+      }
+    </script>
+  </head>
+
+  <body>
+
+    <!--Page Description-->
+    <center>
+      <h1>URI Management Service (UMS)</h1>
+    </center>
+
+    <!--GUI interface (process via UMS.php)-->
+    <!--<form name="myForm" action="UMS.php" onsubmit="return false" enctype="multipart/form-data" method="post">-->
+    <form name="myForm" action="UMS.php" enctype="multipart/form-data" method="post">
+    <!--<form name="myForm" action="UMS.php" onsubmit="return validateForm();" enctype="multipart/form-data" method="post">-->
+
+      <!--<input type="hidden" name="operation" value="create">-->
+
+      <p>
+      &nbsp;Operation<br/>
+      <select name="operation">
+          <option value="create" selected="selected">Create</option>
+          <option value="delete">Delete</option>
+          <option value="search">Search</option>
+      </select>
+
+      <p>
+      &nbsp;Namespace&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Terms (separated by commas if more than one entry)<br/>
+      <input type="text" name="namespace" size="10" value="openisdm">
+      :
+      <input type="text" name="terms" size="50">
+      </p>
+      <!--<p>-->
+      <!--&nbsp;Terms from object (json example: {"demo-json1":["testA","testB","testC"],"demo-json2":["testA","testB","testC"]})<br/>-->
+      <!--<input type="text" name="json_string" size="100">-->
+      <!--</p>-->
+      <p>
+      &nbsp;Terms from URL (example: http://cwyu.iis.sinica.edu.tw/input/ums-input-object.json)<br/>
+      <input type="text" name="json_url" size="70">
+      </p>
+      <!--<p>-->
+      <!--Terms from file: (separated by commas if more than one entry)<br/>-->
+      <!--<input type="file" name="json_file" size="40">-->
+      <!--</p>-->
+      <div>
+        <input type="submit" name="submit" value="Submit">
+      </div>
+    </form>
+
+  </body>
+</html>
+
+<?php
+
+// https://ph.ccg.tw/neologism/?q=user&user-login=admin&edit-pass-wrapper=iis404
+// http://www.webbotsspidersscreenscrapers.com/
+
+// if (file_exists('./'. conf_path() .'/settings.php')) {
+//   include_once './'. conf_path() .'/settings.php';
+// }
+
+// OpenISDM Namespace URI: {花蓮縣 秀林鄉 和平村 花縣DF025 200 Y 2012/08/22 17:00:00 1199 1198 和中 富世}
+// http://project-hosting.iis.sinica.edu.tw/neologism/    以後改這個
+// https://project-hosting.iis.sinica.edu.tw/neologism/
+?>

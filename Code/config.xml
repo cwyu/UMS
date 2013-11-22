@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Configuration File -->
+
+<config>
+    <neogolism>
+        <website>http://project-hosting.iis.sinica.edu.tw/neologism/</website>
+        <username>admin</username>
+        <password>iis404</password>
+        <cookie>
+            <directory description="pre-existing and writable directory">/tmp</directory>
+            <filename>cookie.txt</filename>
+        </cookie>
+    </neogolism>
+</config>
