@@ -36,11 +36,16 @@ class Config
         }
 
         // set data members
-        $this->website = (string) $config->xpath("/config/neogolism/website")[0];
-        $this->username = (string) $config->xpath("/config/neogolism/username")[0];
-        $this->password = (string) $config->xpath("/config/neogolism/password")[0];
-        $this->cookie_directory = (string) $config->xpath("/config/neogolism/cookie/directory")[0];
-        $this->cookie_filename = (string) $config->xpath("/config/neogolism/cookie/filename")[0];
+        $node =  $config->xpath("/config/neogolism/website");
+        $this->website = (string) $node[0];
+        $node =  $config->xpath("/config/neogolism/username");
+        $this->username = (string) $node[0];
+        $node =  $config->xpath("/config/neogolism/password");
+        $this->password = (string) $node[0];
+        $node =  $config->xpath("/config/neogolism/cookie/directory");
+        $this->cookie_directory = (string) $node[0];
+        $node =  $config->xpath("/config/neogolism/cookie/filename");
+        $this->cookie_filename = (string) $node[0];
 
         // set path to cookie file
         $this->cookie_file = $this->cookie_directory . DIRECTORY_SEPARATOR . $this->cookie_filename;

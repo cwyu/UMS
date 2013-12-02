@@ -1,0 +1,23 @@
+[
+    {
+        "namespace": "test1",
+        "terms": ["abc", "cde", "fgh"]
+    }, 
+    {
+        "namespace": "test2",
+        "terms": ["abc", "c   de", "fgh"]
+    }, 
+    {
+        "namespace": "test3",
+        "terms": ["abc", "fgh+i"]
+    }, 
+    {
+        "namespace": "cwb",
+        "terms": ["typhoon", "earthquake", "landslide", "flood"]
+    }, 
+    {
+        "namespace": "swcb",
+        "terms": ["typhoon", "earthquake"]
+    }
+]
+

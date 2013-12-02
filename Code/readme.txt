@@ -3,7 +3,7 @@
 # Functionality Description
 create URIs
 delete URIs
-search URIs (TODO)
+search URIs
 
 # Directory Structure
     .
@@ -16,7 +16,6 @@ search URIs (TODO)
     ├── readme.txt
     ├── UMS-GUI.html
     └── UMS.php
-
 
 # Directory Structure Description
     config.xml      configuration file

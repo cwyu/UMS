@@ -42,8 +42,7 @@
  * @project    OpenISDM (http://openisdm.iis.sinica.edu.tw/)
  *
  * TODO:
- *     1. Support search functionality, and make other input format
- *     2. Support other input format to create/delete/search operation
+ *     Support other input format to create/delete/search operation
  */
 
 // define named constants
@@ -143,6 +142,12 @@ class UMS
             // response and exit
             $this->responseError($return_array['ERROR_MESSAGE']);
             exit;
+        }
+
+        // avoid unnecessary output message caused by constant redefining (COOKIE_FILE)
+        $author_php_version = "5.4.6";
+        if (version_compare(phpversion(), $author_php_version, "<")) {
+            error_reporting(E_ALL & ~E_NOTICE);
         }
 
         // overwrite cookie path defined in open source library
@@ -482,10 +487,6 @@ class UMS
      *     $return_array['STATUS']          = SUCCESS if success, else FAILURE
      *     $return_array['FAILURE_MESSAGE'] = operation failure message
      *     $return_array['URI']             = URI
-     * 
-     * TODO:
-     *     Check if URI already exist before creating, because Neologism can create the same URI without errors.
-     *     The check is a little difficult due to the #hash in URI would be ingored, ex. <http://website/resource#fake> can still be visited.
      */
     function createURI($homepage, $namespace, $term)
     {
@@ -538,13 +539,10 @@ class UMS
         $class_name = "messages error";    // http://view-source beforehand
         $failure_message = $this->getHtmlErrorMessageByClassName($html, $class_name);
 
-        // TODO: skip 2nd condition when Neologism reinstall to normal
         // set return array
-        $warning_message = "user warning";
-        if (!is_null($failure_message) && substr_count($failure_message, $warning_message) == 0) {
+        if (!is_null($failure_message)) {
             $return_array['STATUS'] = FAILURE;
             $return_array['FAILURE_MESSAGE'] = $failure_message;
-            //$return_array['URI'] = null;
         } else {
             $return_array['STATUS'] = SUCCESS;
             $return_array['URI'] = $homepage . $namespace . "#" . $term;
@@ -557,6 +555,10 @@ class UMS
     /**
      * DESCRIPTION:
      *     Servcie of control path
+     *     PHP Note:
+     *         $_GET is an associative array for HTTP GET method, 
+     *         $_POST is an associative array for HTTP POST method, 
+     *         $_REQUEST is an associative array for both HTTP GET and POST method.
      *
      * IN:
      *     NONE
@@ -568,7 +570,8 @@ class UMS
      *     NONE
      * 
      * TODO:
-     *     Support other operations
+     *     1. Support other operations
+     *     2. Change $_REQUEST to $_POST (HTTP POST communication in design document)
      */
     function startService()
     {
@@ -586,9 +589,12 @@ class UMS
                         $terms = $_REQUEST['terms'];
                         $this->serviceByCsvTerms($operation, $namespace, $terms);
                     }
-                } else if (isset($_REQUEST['json_url']) && !empty($_REQUEST['json_url'])) {
+                } else if (isset($_REQUEST['json_url']) && !empty($_REQUEST['json_url'])) {    // create from URL
                     $json_url = $_REQUEST['json_url'];
                     $this->serviceByJsonURL($operation, $json_url);
+                } else if (isset($_FILES['json_file']) && !empty($_FILES['json_file'])) {    // create from file
+                    $json_file_info = $_FILES['json_file'];
+                    $this->serviceByJsonFile($operation, $json_file_info);
                 } else {
                     // response error
                     $this->responseError("operation not supported yet.");
@@ -602,9 +608,17 @@ class UMS
                     // response error
                     $this->responseError("operation not supported yet.");
                 }
-            } else if ($operation == OPERATION_SEARCH) {
+            } else if ($operation == OPERATION_SEARCH) {    // this is not using SPARQL query
+                if (isset($_REQUEST['terms']) && !empty($_REQUEST['terms'])) {
+                    // POST_EXAMPLE://service.com?operation=delete&terms=TERM1,TERM2
+                    $terms = $_REQUEST['terms'];    // CSV format
+                    $this->serviceByCsvTerms($operation, null, $terms);
+                } else {
+                    // response error
+                    $this->responseError("operation not supported yet.");
+                }
                 // TODO
-                $this->responseError("TODO operation.");
+                //$this->responseError("TODO operation.");
             } else {
                 // response error
                 $this->responseError("operation not supported yet.");
@@ -617,11 +631,10 @@ class UMS
 
     /**
      * DESCRIPTION:
-     *     Check if namespace exists
+     *     Check if namespace exists under Neologism
      *
      * IN:
      *     NONE
-     *     $homepage     homepage
      *     $namespace    namespace
      *
      * OUT:
@@ -630,11 +643,19 @@ class UMS
      * RETURNS:
      *     Boolean type: true if exists, else false
      */
-    function isNamespaceExist($homepage, $namespace)
+    function isNamespaceExist($namespace)
     {
-        $namespace_url = $homepage . $namespace;
+        $url = $this->config->website . $namespace;
+        //$url = $homepage . $namespace;
 
-        if ($this->isPageURLExist($namespace_url) == true) {
+        // get HTML header
+        $headers = get_headers($url);
+
+        // set existence condition for Neologism
+        $http_code_ok = "200";
+
+        // check if "HTTP/1.1 200 OK"
+        if (strpos($headers[0], $http_code_ok)) {
             return true;
         } else {
             return false;
@@ -643,33 +664,133 @@ class UMS
 
     /**
      * DESCRIPTION:
-     *     Check if namespace exists
+     *     Check if URI exists under Neologism
      *
      * IN:
-     *     NONE
-     *     $homepage     homepage
      *     $namespace    namespace
+     *     $term         term
      *
      * OUT:
      *     NONE
      * 
      * RETURNS:
      *     Boolean type: true if exists, else false
-     * 
-     * TODO:
-     *     Readable check method
      */
-    function isPageURLExist($url) {
-        $headers = get_headers($url);
-        $code = substr($headers[0], $start = 9, $length = 3);
+    function isURIExist($namespace, $term) {
+        // set target URI
+        $target_uri = $this->config->website . $namespace . "#" . $term;
+        $namespace_url = $this->config->website . $namespace;
 
-        // TODO: change code -> http_response_code($bad_request = 400);
-        $OK = 200;    // HTTP response code for "HTTP/1.1 200 OK"
-        if ($code == $OK) {
-            return true;
-        } else {
-            return false;
+        // get URIs
+        $uri_list = $this->getURIsByNamespaceLink($namespace_url);
+
+        // return true if found
+        foreach ($uri_list as $uri) {
+            if ($uri == $target_uri) {
+                return true;
+            }
         }
+
+        return false;
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Get URIs from a namespace link
+     *
+     * IN:
+     *     $namespace    namespace URL link
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     Returns URI list if exists, else empty array
+     */
+    function getURIsByNamespaceLink($namespace_link)
+    {
+        // set parameters
+        $class_name = "term-details";    // http://view-source beforehand
+
+        return $this->getHtmlLinkListByClassName($namespace_link, $class_name);
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Get node list from HTML by class name
+     *
+     * IN:
+     *     $html          HTML context
+     *     $class_name    class name in HTML
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     Returns node list if exists, else null
+     */
+    function getHtmlNodeListByClassName($html, $class_name)
+    {
+        // parse HTML
+        $doc = new DOMDocument();
+        @$doc->loadHTML($html);    // symbol '@' is to ignore warning message due to the original HTML code
+        $xpath = new DomXpath($doc);
+        $query_string = "//*[@class=\"$class_name\"]";    // http://view-source beforehand
+        $node_list = $xpath->query($query_string);    // will get DOMNodeList if query success, else false
+
+        // adjust return value
+        $node_list = ($node_list == false) ? null : $node_list;
+
+        return $node_list;
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Get link list from HTML by class name
+     *
+     * IN:
+     *     $html          HTML context
+     *     $class_name    class name in HTML
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     Returns link list if exists, else empty array
+     */
+    function getHtmlLinkListByClassName($url, $class_name)
+    {
+        // init result container
+        $list = array();
+
+        // set required parameters (simulate browser behavior)
+        $ref = "";
+        $method = "GET";
+        $data_array = null;
+
+        // summit data (to get a webpage)
+        $response = http($url, $ref, $method, $data_array, EXCL_HEAD);
+
+        // get HTML node list
+        $html = $response['FILE'];
+        $uri_node_list = $this->getHtmlNodeListByClassName($html, $class_name);
+
+        // search for links
+        if (!is_null($uri_node_list)) {
+            foreach ($uri_node_list as $uri_node) {
+                // set regular expression parameters
+                $subject = $uri_node->nodeValue;
+                $pattern = '@https?://.+@i';
+
+                // add entry to list
+                if (preg_match($pattern, $subject, $matches)) {
+                    // result in $matches[0]
+                    array_push($list, $matches[0]);
+                }
+            }
+        }
+
+        return $list;
     }
 
     /**
@@ -688,17 +809,43 @@ class UMS
      */
     function getHtmlErrorMessageByClassName($html, $class_name)
     {
-        // parse HTML
-        $doc = new DOMDocument();
-        @$doc->loadHTML($html);    // symbol '@' is to ignore warning message due to the original HTML code
-        $xpath = new DomXpath($doc);
-        $query_string = "//*[@class=\"$class_name\"]";    // http://view-source beforehand
-        $html_tag = $xpath->query($query_string)->item(0);
+        // get node list
+        $html_node_list = $this->getHtmlNodeListByClassName($html, $class_name);
 
-        // get error message
-        $error_message = (is_null($html_tag)) ? null : $html_tag->textContent;
+        // fetch error message
+        $error_node = (is_null($html_node_list)) ? null : $html_node_list->item(0);    // the only one error node in Neologism
+        $error_message = (is_null($error_node)) ? null : $error_node->nodeValue;
 
         return $error_message;
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Operation create by JSON file
+     *
+     * IN:
+     *     $json_file_info    JSON file information (structure-content describes in design document)
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     NONE
+     */
+    function operationCreateByJsonFile($json_file_info)
+    {
+        // set file information
+        $json_error = $json_file_info['error'];    // language support in PHP
+        $json_file = $json_file_info['tmp_name'];   // language support in PHP
+
+        // check file
+        if ($json_error > 0) {
+            // response error
+            $this->responseError("failed to upload file.");
+        } else {
+            // action
+            $this->operationCreateByJson($json_file);
+        }
     }
 
     /**
@@ -716,11 +863,30 @@ class UMS
      */
     function operationCreateByJsonURL($json_url)
     {
+        // forwarding function
+        $this->operationCreateByJson($json_url);
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Operation create by JSON file
+     *
+     * IN:
+     *     $json_file    JSON file (structure-content describes in design document)
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     NONE
+     */
+    function operationCreateByJson($json_file)
+    {
         // load JSON
-        $json_string = file_get_contents($json_url);
+        $json_string = file_get_contents($json_file);
         $json_array = json_decode($json_string, true);
 
-        // check error
+        // check error (convert to JSON array)
         if (json_last_error() != JSON_ERROR_NONE) {
             // response and exit
             $this->responseError("invalid JSON file.");
@@ -742,30 +908,38 @@ class UMS
 
             // variables
             $return_array = null;
-            $namespace_error_flag = null;    // to keep any error message until response
+            $namespace_return_array = null;
+            $message_failure_flag = null;    // to keep any error message until response
 
             // check if namespace already exist
-            if ($this->isNamespaceExist($this->config->website, $namespace) == false) {
+            if ($this->isNamespaceExist($namespace) == false) {
                 // add namespace
-                $return_array = $this->createNamespace($this->config->website, $namespace);
+                $namespace_return_array = $this->createNamespace($this->config->website, $namespace);
 
                 // set flag
-                if ($return_array['STATUS'] == FAILURE) {
-                    $namespace_error_flag = true;
-                } else {
-                    $namespace_error_flag = false;
-                }
+                $message_failure_flag = ($namespace_return_array['STATUS'] == FAILURE) ? true : false;
             }
 
             // create URIs
             foreach ($terms as $term) {
                 // check previous error
-                if ($namespace_error_flag == true) {
-                    // add response information
+                if ($message_failure_flag == true) {
+                    // set response information
+                    $return_array = $namespace_return_array;
                     $return_array['TERM'] = $term;
                 } else {
-                    // create URI (response will give details whether the URI exists or not)
-                    $return_array = $this->createURI($this->config->website, $namespace, $term);
+                    // check if URI already exist
+                    if ($this->isURIExist($namespace, $term)) {
+                        // set response information
+                        $return_array['TERM'] = $term;
+                        $return_array['NAMESPACE'] = $namespace;
+                        $return_array['STATUS'] = FAILURE;
+                        $uri = $this->config->website . $namespace . "#" . $term;
+                        $return_array['FAILURE_MESSAGE'] = "URI already exists. $uri";
+                    } else {
+                        // create URI (response will give details whether the URI exists or not)
+                        $return_array = $this->createURI($this->config->website, $namespace, $term);
+                    }
                 }
 
                 // append information for response
@@ -841,9 +1015,6 @@ class UMS
      * 
      * RETURNS:
      *     NONE
-     * 
-     * TODO:
-     *     Support other operations
      */
     function operationCreateByCsvTerms($namespace, $terms)
     {
@@ -852,7 +1023,7 @@ class UMS
         $namespace_error_flag = null;    // to keep any error message until response
 
         // check if namespace already exist
-        if ($this->isNamespaceExist($this->config->website, $namespace) == false) {
+        if ($this->isNamespaceExist($namespace) == false) {
             // add namespace
             $return_array = $this->createNamespace($this->config->website, $namespace);
 
@@ -889,6 +1060,111 @@ class UMS
 
         // report
         $this->responseReoprtByJSON(OPERATION_CREATE, $this->response_array);
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Operation search by CSV list. Search URIs from all namespaces.
+     *     This is not using SPARQL query.
+     *
+     * IN:
+     *     $terms       a CSV list of comma-separated values
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     NONE
+     */
+    function operationSearchByCsvTerms($terms)
+    {
+        // set parameters
+        $homepage = $this->config->website;
+        $class_name = "namespace-uri";    // http://view-source beforehand
+
+        $namespace_link_list = $this->getHtmlLinkListByClassName($homepage, $class_name);
+
+        // set delimiters and load CSV
+        $delimiters = ", ";    // CSV format (comma-separated)
+        $term = strtok($terms, $delimiters);
+
+        // parse and search URIs
+        while ($term != false) {
+            // variables
+            $return_array = null;
+            $return_array['URI'] = array();
+
+            // search from all namespaces
+            foreach ($namespace_link_list as $namespace_link) {
+                // get URIs
+                $uri_list = $this->getURIsByNamespaceLink($namespace_link);
+
+                // extract terms to compare
+                foreach ($uri_list as $uri) {
+                    // http://somewhere/example#term -> term
+                    $extracted_term = trim(strstr($uri, "#"), "#");
+
+                    // get it!!
+                    if ($extracted_term == $term) {
+                        array_push($return_array['URI'], $uri);
+                    }
+                }
+            }
+
+            // add response information
+            if (count($return_array['URI']) > 0) {
+                $return_array['TERM'] = $term;
+                $return_array['STATUS'] = SUCCESS;
+            } else {
+                $return_array['TERM'] = $term;
+                $return_array['NAMESPACE'] = null;
+                $return_array['STATUS'] = FAILURE;
+                $return_array['FAILURE_MESSAGE'] = "Cannot find any URI for the term $term";
+            }
+
+            // append information for response
+            array_push($this->response_array, $return_array);
+
+            // get next token
+            $term = strtok(", ");
+        }
+
+        // report
+        $this->responseReoprtByJSON(OPERATION_SEARCH, $this->response_array);
+    }
+
+    /**
+     * DESCRIPTION:
+     *     Service by JSON file
+     *
+     * IN:
+     *     $operation   operation (create/delete/search)
+     *     $json_file   JSON file (structure-content describes in design document)
+     *
+     * OUT:
+     *     NONE
+     * 
+     * RETURNS:
+     *     NONE
+     * 
+     * TODO:
+     *     Support other operations
+     */
+    function serviceByJsonFile($operation, $json_file)
+    {
+        if ($operation == OPERATION_CREATE) {
+            // create URIs
+            $this->operationCreateByJsonFile($json_file);
+        } else if ($operation == OPERATION_DELETE) {
+            // TODO
+            $this->responseError("TODO operation.");
+        } else if ($operation == OPERATION_SEARCH) {
+            // TODO
+            $this->responseError("TODO operation.");
+        } else {
+            // response error
+            $this->responseError("operation not supported yet.");
+        }
     }
 
     /**
@@ -986,8 +1262,8 @@ class UMS
             // TODO
             $this->responseError("TODO operation.");
         } else if ($operation == OPERATION_SEARCH) {
-            // TODO
-            $this->responseError("TODO operation.");
+            // search URIs
+            $this->operationSearchByCsvTerms($terms);
         } else {
             // response error
             $this->responseError("operation not supported yet.");
@@ -1098,58 +1374,5 @@ class UMS
         return $result;
     }
 }
-
-// // TODO
-// else if (isset($_REQUEST['json_string']) && !empty($_REQUEST['json_string'])) {
-//     $json_string = $_REQUEST['json_string'];
-//     $json_obj = json_decode($json_string, true);
-//     foreach ($json_obj as $namespace => $terms) {
-//         echo "namespace =  $namespace <br />";
-// 
-//         // check if namespace already exist
-//         if (isNamespaceExist($config->website, $namespace) == false) {
-//             echo "<p>Namespace $namespace is not exist, now created successfully<p>";
-// 
-//             // add namespace
-//             createNamespace($config->website, $namespace);
-//         }
-// 
-//         // add terms
-//         foreach ($terms as $term) {
-//             echo "term =  $term <br />";
-//             createURI($config->website, $namespace, $term);
-//         }
-//     }
-// }
-// 
-// // add from file (todo)
-// else if (isset($_FILES['json_file']) && !empty($_FILES['json_file'])) {
-//     if ($_FILES['json_file']['error'] > 0) {
-//         echo "Error: " . $_FILES['json_file']['error'] . "<br />";
-//         exit;
-//     } else {
-//         $json_file = $_FILES['json_file']['tmp_name'];
-//         $json_string = file_get_contents($json_file);
-//         $json_obj = json_decode($json_string, true);
-//         foreach ($json_obj as $namespace => $terms) {
-//             echo "namespace =  $namespace <br />";
-// 
-//             // check if namespace already exist
-//             if (isNamespaceExist($config->website, $namespace) == false) {
-//                 echo "<p>Namespace $namespace is not exist, now created successfully<p>";
-// 
-//                 // add namespace
-//                 createNamespace($config->website, $namespace);
-//             }
-// 
-//             // add terms
-//             foreach ($terms as $term) {
-//                 echo "term =  $term <br />";
-//                 createURI($config->website, $namespace, $term);
-//             }
-//         }
-//     }
-// }
-
 
 ?>

@@ -3,7 +3,12 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>URI Management Service (UMS)</title>
 
+    <!--JavaScript Library-->
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+
+    <!--JavaScript-->
     <script type="text/javascript">
+      // upload file field validation
       function validateForm() {
           var json_file = document.forms["myForm"]["json_file"].value;
           if (!json_file) {
@@ -11,67 +16,118 @@
               return false;
           }
       }
+
+      // popup example of input JSON object
+      function popupJsonExample(e) {
+        $message = "Example of Input JSON Object:\n";
+        $message += "\n";
+        $message += "[\n";
+        $message += "    {\n";
+        $message += "        \"namespace\": \"cwb\",\n";
+        $message += "        \"terms\": [\"typhoon\", \"earthquake\", \"landslide\", \"flood\"]\n";
+        $message += "    }, \n";
+        $message += "    {\n";
+        $message += "        \"namespace\": \"swcb\",\n";
+        $message += "        \"terms\": [\"typhoon\", \"earthquake\"]\n";
+        $message += "    }\n";
+        $message += "]\n";
+        if (!alert($message)) {
+          e.preventDefault();
+        }
+      }
     </script>
+
+    <!--CSS-->
+    <style type="text/css">
+      pre {
+        font-family: Serif;
+        margin: 0;
+      }
+    </style>
   </head>
 
-  <body>
+  <body onload="drawGUI()")>
 
     <!--Page Description-->
     <center>
       <h1>URI Management Service (UMS)</h1>
     </center>
 
-    <!--GUI interface (process via UMS.php)-->
-    <!--<form name="myForm" action="UMS.php" onsubmit="return false" enctype="multipart/form-data" method="post">-->
+    <!--POST Requests to UMS-->
     <form name="myForm" action="UMS.php" enctype="multipart/form-data" method="post">
-    <!--<form name="myForm" action="UMS.php" onsubmit="return validateForm();" enctype="multipart/form-data" method="post">-->
-
-      <!--<input type="hidden" name="operation" value="create">-->
-
-      <p>
-      &nbsp;Operation<br/>
-      <select name="operation">
-          <option value="create" selected="selected">Create</option>
-          <option value="delete">Delete</option>
-          <option value="search">Search</option>
+      <!--Operation Mode-->
+      <select name="operation" id="operation">
+        <option value="create" selected="selected">Create</option>
+        <option value="delete">Delete</option>
+        <option value="search">Search</option>
       </select>
 
-      <p>
-      &nbsp;Namespace&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Terms (separated by commas if more than one entry)<br/>
-      <input type="text" name="namespace" size="10" value="openisdm">
-      :
-      <input type="text" name="terms" size="50">
-      </p>
-      <!--<p>-->
-      <!--&nbsp;Terms from object (json example: {"demo-json1":["testA","testB","testC"],"demo-json2":["testA","testB","testC"]})<br/>-->
-      <!--<input type="text" name="json_string" size="100">-->
-      <!--</p>-->
-      <p>
-      &nbsp;Terms from URL (example: http://cwyu.iis.sinica.edu.tw/input/ums-input-object.json)<br/>
-      <input type="text" name="json_url" size="70">
-      </p>
-      <!--<p>-->
-      <!--Terms from file: (separated by commas if more than one entry)<br/>-->
-      <!--<input type="file" name="json_file" size="40">-->
-      <!--</p>-->
-      <div>
-        <input type="submit" name="submit" value="Submit">
-      </div>
+      <!--Dynamic Tag-->
+      <div id="myDiv"></div>
+
+      <!--Submit Data-->
+      <input type="submit" name="submit" value="Submit">
     </form>
 
-  </body>
+  <script type="text/javascript">
+    var selectElement = document.getElementById("operation");
+    var divElement = document.getElementById("myDiv");
+
+    // add event listener
+    selectElement.onchange = drawGUI;
+
+    // dynamic GUI
+    function drawGUI() {
+      // get value from HTML <select> tag
+      var selectedValue = selectElement.options[selectElement.selectedIndex].value;
+
+      // operation mode
+      if (selectedValue == "create") {
+        // init
+        divElement.innerHTML = '';
+
+        // parameter: namespace & terms
+        divElement.innerHTML += '<p>';
+        divElement.innerHTML += '<pre> Namespace       Terms (comma-separated)</pre>';
+        divElement.innerHTML += '<input type="text" name="namespace" size="10" value="openisdm" title="Optional, defaults to openisdm, example: namespace1">';
+        divElement.innerHTML += ':';
+        divElement.innerHTML += '<input type="text" name="terms" size="40" title="Example: term1, term2, term3 (Description: create URIs one namespace at a time, but multiple terms can be specified)">';
+        divElement.innerHTML += '</p>';
+
+        // parameter: json_url
+        divElement.innerHTML += '<p>';
+        divElement.innerHTML += '<pre> Terms and Namespaces from URL (<input type="submit" onclick="popupJsonExample(event)" value="Example"/>)</pre>';
+        divElement.innerHTML += '<input type="url" name="json_url" size="70" title="Example: http://somewhere/input.json (Description: create URIs multiple namespaces at a time, and multiple terms can be specified respectively)">';
+        divElement.innerHTML += '</p>';
+
+        // parameter: json_file
+        divElement.innerHTML += '<p>';
+        divElement.innerHTML += '<pre> Terms from file (<input type="submit" onclick="popupJsonExample(event)" value="Example"/>)</pre>';
+        divElement.innerHTML += '<input type="file" name="json_file" size="40">';
+        divElement.innerHTML += '</p>';
+      } else if (selectedValue == "delete") {
+        // init
+        divElement.innerHTML = '';
+
+        // parameter: namespaces
+        divElement.innerHTML += '<p>';
+        divElement.innerHTML += '<pre> Namespaces (comma-separated)</pre>';
+        divElement.innerHTML += '<input type="text" name="namespaces" size="70" title="Example: namespace1, namespace2, namespace3 (Caution: all terms under the namespace will be all deleted)">';
+        divElement.innerHTML += '</p>';
+      } else if (selectedValue == "search") {
+        // init
+        divElement.innerHTML = '';
+
+        // parameter: terms
+        divElement.innerHTML += '<p>';
+        divElement.innerHTML += '<pre> Terms (comma-separated)</pre>';
+        divElement.innerHTML += '<input type="text" name="terms" size="70" title="Example: term1, term2, term3 (Description: all URIs with the specified term will be all found out)">';
+        divElement.innerHTML += '</p>';
+      } else {
+        divElement.innerHTML = '<p>Not supported</p>';
+      }
+    };
+  </script>
+
+</body>
 </html>
-
-<?php
-
-// https://ph.ccg.tw/neologism/?q=user&user-login=admin&edit-pass-wrapper=iis404
-// http://www.webbotsspidersscreenscrapers.com/
-
-// if (file_exists('./'. conf_path() .'/settings.php')) {
-//   include_once './'. conf_path() .'/settings.php';
-// }
-
-// OpenISDM Namespace URI: {花蓮縣 秀林鄉 和平村 花縣DF025 200 Y 2012/08/22 17:00:00 1199 1198 和中 富世}
-// http://project-hosting.iis.sinica.edu.tw/neologism/    以後改這個
-// https://project-hosting.iis.sinica.edu.tw/neologism/
-?>
