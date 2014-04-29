@@ -4,8 +4,8 @@
 <config>
     <neogolism>
         <website>http://project-hosting.iis.sinica.edu.tw/neologism/</website>
-        <username>admin</username>
-        <password>iis404</password>
+        <username>USERNAME</username>
+        <password>PASSWORD</password>
         <cookie>
             <directory description="pre-existing and writable directory">/tmp</directory>
             <filename>cookie.txt</filename>
